@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=Special+Elite&display=swap");
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button {
+  font-family: inherit;
+}
+input,
+select,
+textarea {
+  font-family: "Inter", sans-serif;
+}
+::selection {
+  background: #b9862e;
+  color: #faf4e4;
+}
+
+.tfm-link {
+  color: #ede3cb;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+.tfm-link:hover {
+  color: #b9862e;
+}
+
+.tfm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .tfm-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tfm-nav-links {
+    display: none !important;
+  }
+  .tfm-split {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .tfm-grid {
+    grid-template-columns: 1fr;
+  }
+}
