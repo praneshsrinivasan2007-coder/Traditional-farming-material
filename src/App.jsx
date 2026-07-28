@@ -1,5 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { COLORS, INITIAL_PRODUCTS, newId } from "./data.js";
+import { db } from "./firebase.js";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  setDoc,
+  deleteDoc,
+  getDocs,
+  writeBatch,
+} from "firebase/firestore";
 
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
@@ -18,9 +28,43 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
 
   // --- catalog / navigation ---
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [view, setView] = useState("login");
   const [selectedId, setSelectedId] = useState(null);
+
+  // --- Firestore: seed once if empty, then subscribe to live updates ---
+  useEffect(() => {
+    const productsCol = collection(db, "products");
+
+    async function seedIfEmpty() {
+      const snap = await getDocs(productsCol);
+      if (snap.empty) {
+        const batch = writeBatch(db);
+        INITIAL_PRODUCTS.forEach((p) => {
+          batch.set(doc(db, "products", p.id), p);
+        });
+        await batch.commit();
+      }
+    }
+
+    seedIfEmpty().catch((err) => console.error("Failed to seed products:", err));
+
+    const unsubscribe = onSnapshot(
+      productsCol,
+      (snap) => {
+        const list = snap.docs.map((d) => d.data());
+        setProducts(list);
+        setProductsLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load products:", err);
+        setProductsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // --- cart / checkout ---
   const [cart, setCart] = useState({});
@@ -110,7 +154,25 @@ export default function App() {
     setCheckoutError("");
     const num = "TFM-" + Math.floor(100000 + Math.random() * 900000);
     setOrderNumber(num);
-    setProducts((prev) => prev.map((p) => (cart[p.id] ? { ...p, stock: Math.max(0, p.stock - cart[p.id]) } : p)));
+
+    const updatedProducts = products.map((p) =>
+      cart[p.id] ? { ...p, stock: Math.max(0, p.stock - cart[p.id]) } : p
+    );
+    setProducts(updatedProducts);
+
+    const batch = writeBatch(db);
+    updatedProducts.forEach((p) => {
+      if (cart[p.id]) batch.set(doc(db, "products", p.id), p);
+    });
+    batch.set(doc(db, "orders", num), {
+      orderNumber: num,
+      items: cartItems.map((i) => ({ id: i.product.id, name: i.product.name, qty: i.qty, price: i.product.price })),
+      total,
+      customer: form,
+      createdAt: Date.now(),
+    });
+    batch.commit().catch((err) => console.error("Failed to save order:", err));
+
     setCart({});
     goTo("confirmation");
   }
@@ -138,14 +200,11 @@ export default function App() {
       return;
     }
     const cleaned = { ...adminForm, price: Number(adminForm.price) || 0, stock: Number(adminForm.stock) || 0, rating: Number(adminForm.rating) || 4.5 };
-    setProducts((prev) => {
-      const exists = prev.some((p) => p.id === cleaned.id);
-      return exists ? prev.map((p) => (p.id === cleaned.id ? cleaned : p)) : [...prev, cleaned];
-    });
+    setDoc(doc(db, "products", cleaned.id), cleaned).catch((err) => console.error("Failed to save product:", err));
     cancelAdminForm();
   }
   function deleteProduct(id) {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    deleteDoc(doc(db, "products", id)).catch((err) => console.error("Failed to delete product:", err));
   }
 
   return (
@@ -199,4 +258,4 @@ export default function App() {
       <Footer user={user} />
     </div>
   );
-}
+        }
